@@ -1,0 +1,41 @@
+{
+  "name": "@1infra/one-signal-pi",
+  "version": "0.1.0",
+  "description": "Passive Pi telemetry extension for One Signal via classic Langfuse ingest.",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "telemetry",
+    "langfuse",
+    "one-signal"
+  ],
+  "license": "MIT",
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.80.6 <1"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "packageManager": "npm@11.6.1",
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@types/node": "^22.15.31",
+    "typescript": "^5.9.3"
+  }
+}
