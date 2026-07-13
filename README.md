@@ -26,27 +26,58 @@ For project-local development install:
 pi install --local ./one-signal-pi
 ```
 
-## Required configuration
+## Configuration
 
-Required:
-
-```bash
-export ONE_SIGNAL_API_TOKEN=oc_...
-```
-
-Optional:
-
-```bash
-export ONE_SIGNAL_BASE_URL=https://connector.1infra.io
-export ONE_SIGNAL_STATE_DIR=/custom/safe/state/dir
-```
-
-`ONE_SIGNAL_BASE_URL` defaults to `https://connector.1infra.io`.
-
-`ONE_SIGNAL_STATE_DIR` defaults to:
+Persistent config is the recommended setup. By default, One Signal reads:
 
 ```text
-${PI_CODING_AGENT_DIR:-~/.pi/agent}/one-signal-pi
+~/.pi/agent/one-signal-pi/config.json
+```
+
+That path is equivalent to:
+
+```text
+${ONE_SIGNAL_STATE_DIR:-${PI_CODING_AGENT_DIR:-~/.pi/agent}/one-signal-pi}/config.json
+```
+
+Create the directory and file with restrictive permissions:
+
+```bash
+ONE_SIGNAL_CONFIG_DIR="${ONE_SIGNAL_STATE_DIR:-${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/one-signal-pi}"
+mkdir -p "$ONE_SIGNAL_CONFIG_DIR"
+chmod 700 "$ONE_SIGNAL_CONFIG_DIR"
+cat > "$ONE_SIGNAL_CONFIG_DIR/config.json" <<'EOF'
+{
+  "ONE_SIGNAL_API_TOKEN": "oc_replace_me",
+  "ONE_SIGNAL_BASE_URL": "https://connector.1infra.io"
+}
+EOF
+chmod 600 "$ONE_SIGNAL_CONFIG_DIR/config.json"
+```
+
+Only these top-level string fields are read from `config.json`:
+
+```json
+{
+  "ONE_SIGNAL_API_TOKEN": "oc_replace_me",
+  "ONE_SIGNAL_BASE_URL": "https://connector.1infra.io"
+}
+```
+
+`ONE_SIGNAL_BASE_URL` defaults to `https://connector.1infra.io` when it is absent or empty.
+
+If you want the spool and `config.json` somewhere else, set `ONE_SIGNAL_STATE_DIR` first, then run the same example above so it creates the directory with `chmod 700` and `config.json` with `chmod 600` at:
+
+```text
+$ONE_SIGNAL_STATE_DIR/config.json
+```
+
+Environment variables still work and always override `config.json`. Treat them as a temporary or session-scoped alternative:
+
+```bash
+export ONE_SIGNAL_API_TOKEN=oc_replace_me
+export ONE_SIGNAL_BASE_URL=https://connector.1infra.io
+export ONE_SIGNAL_STATE_DIR=/custom/safe/state/dir
 ```
 
 ## What is captured

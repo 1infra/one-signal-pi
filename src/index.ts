@@ -1,21 +1,70 @@
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { DeliveryQueue } from "./delivery.ts";
 import { createPendingInputBuffer, createTurnTracker } from "./one-signal.ts";
 
-function agentDir(): string {
-  return process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent");
+type RuntimeConfig = {
+  agentDir: string;
+  stateDir: string;
+  apiToken?: string;
+  baseUrl: string;
+};
+
+type PersistentConfig = Partial<{
+  ONE_SIGNAL_API_TOKEN: string;
+  ONE_SIGNAL_BASE_URL: string;
+}>;
+
+function resolveAgentDir(env: NodeJS.ProcessEnv, homeDir: string): string {
+  return env.PI_CODING_AGENT_DIR || join(homeDir, ".pi", "agent");
 }
 
-function stateDir(): string {
-  return process.env.ONE_SIGNAL_STATE_DIR || join(agentDir(), "one-signal-pi");
+export function resolveStateDir(env: NodeJS.ProcessEnv = process.env, homeDir = homedir()): string {
+  return env.ONE_SIGNAL_STATE_DIR || join(resolveAgentDir(env, homeDir), "one-signal-pi");
 }
 
 export function resolveBaseUrl(envValue?: string): string {
-  return envValue || "https://connector.1infra.io";
+  return envValue === undefined ? "https://connector.1infra.io" : envValue || "https://connector.1infra.io";
+}
+
+function loadPersistentConfig(stateDir: string): PersistentConfig {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(stateDir, "config.json"), "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    const objectConfig = parsed as Record<string, unknown>;
+
+    const config: PersistentConfig = {};
+    if (typeof objectConfig.ONE_SIGNAL_API_TOKEN === "string") {
+      config.ONE_SIGNAL_API_TOKEN = objectConfig.ONE_SIGNAL_API_TOKEN;
+    }
+    if (typeof objectConfig.ONE_SIGNAL_BASE_URL === "string") {
+      config.ONE_SIGNAL_BASE_URL = objectConfig.ONE_SIGNAL_BASE_URL;
+    }
+    return config;
+  } catch {
+    return {};
+  }
+}
+
+export function resolveRuntimeConfig(env: NodeJS.ProcessEnv = process.env, homeDir = homedir()): RuntimeConfig {
+  const agentDir = resolveAgentDir(env, homeDir);
+  const stateDir = resolveStateDir(env, homeDir);
+  const fileConfig = loadPersistentConfig(stateDir);
+  const token = env.ONE_SIGNAL_API_TOKEN !== undefined ? env.ONE_SIGNAL_API_TOKEN : fileConfig.ONE_SIGNAL_API_TOKEN;
+  const baseUrl = env.ONE_SIGNAL_BASE_URL !== undefined ? env.ONE_SIGNAL_BASE_URL : fileConfig.ONE_SIGNAL_BASE_URL;
+
+  return {
+    agentDir,
+    stateDir,
+    apiToken: token || undefined,
+    baseUrl: resolveBaseUrl(baseUrl),
+  };
 }
 
 function createLogger() {
@@ -57,16 +106,16 @@ export async function flushAndClose(
 }
 
 export default function (pi: ExtensionAPI) {
-  const token = process.env.ONE_SIGNAL_API_TOKEN;
-  if (!token) {
+  const config = resolveRuntimeConfig();
+  if (!config.apiToken) {
     return;
   }
 
   const logger = createLogger();
   const queue = new DeliveryQueue({
-    stateDir: stateDir(),
-    baseUrl: resolveBaseUrl(process.env.ONE_SIGNAL_BASE_URL),
-    apiToken: token,
+    stateDir: config.stateDir,
+    baseUrl: config.baseUrl,
+    apiToken: config.apiToken,
     logger,
     backoffBaseMs: 500,
   });
@@ -138,7 +187,7 @@ export default function (pi: ExtensionAPI) {
     await safe(async () => {
       await ensureStarted();
       const current = ensureTracker(ctx.sessionManager.getSessionId(), ctx.cwd);
-      current?.onInstructionDocuments(event.systemPromptOptions.contextFiles, agentDir(), 8_000);
+      current?.onInstructionDocuments(event.systemPromptOptions.contextFiles, config.agentDir, 8_000);
       await enqueueDrained(current);
     });
   });
